@@ -1,0 +1,81 @@
+# Laboratorio del curso de PySpark: un broker de Kafka y la imagen de las prácticas (Python + Java + PySpark).
+#
+#   docker compose up -d                                   Kafka (dentro de Docker: kafka:19092)
+#   docker compose run --rm spark python 01_hola_spark.py  ejecuta un script de ../practicas
+#   docker compose down        /   docker compose down -v  parar (los datos se conservan) / parar y borrar
+#
+# Puertos solo en 127.0.0.1 y distintos de los habituales para no chocar con otros Kafka del ordenador.
+
+name: curso-pyspark
+
+services:
+  kafka:
+    image: apache/kafka:4.1.2
+    restart: unless-stopped
+    hostname: kafka
+    ports: ["127.0.0.1:39192:39192"]
+    volumes: [kafka:/var/lib/kafka/data]
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENERS: CONTROLLER://:9093,INTERNO://:19092,EXTERNO://:39192
+      KAFKA_ADVERTISED_LISTENERS: INTERNO://kafka:19092,EXTERNO://localhost:39192
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNO:PLAINTEXT,EXTERNO:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNO
+      # Un solo broker: una copia de cada cosa. Por comodidad, los topics se crean solos al escribir en ellos,
+      # con 3 particiones (en producción, mejor desactivarlo y crearlos a mano).
+      KAFKA_NUM_PARTITIONS: 3
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_SHARE_COORDINATOR_STATE_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_SHARE_COORDINATOR_STATE_TOPIC_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_HEAP_OPTS: -Xms256m -Xmx512m
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:19092 > /dev/null"]
+      interval: 10s
+      timeout: 10s
+      retries: 18
+      start_period: 20s
+
+  spark:
+    build: ../docker
+    image: curso-pyspark:local
+    profiles: [herramientas]
+    working_dir: /practicas
+    volumes:
+      - ../datos:/datos:ro
+      - ../practicas:/practicas
+
+  # Lección 20: un clúster Spark Standalone con la misma imagen. docker compose --profile cluster up -d
+  spark-master:
+    image: curso-pyspark:local
+    profiles: [cluster]
+    hostname: spark-master
+    command: ["spark-class", "org.apache.spark.deploy.master.Master", "--host", "spark-master"]
+    ports: ["127.0.0.1:8090:8080"]          # interfaz web del master (8090 para no chocar con Kafka UI)
+
+  spark-worker-1: &worker
+    image: curso-pyspark:local
+    profiles: [cluster]
+    hostname: spark-worker-1
+    depends_on: [spark-master]
+    # Cada worker ofrece 1 núcleo y 1 GB a las aplicaciones. Los datos se montan igual que en el driver:
+    # quien lee el fichero es el ejecutor, en el worker.
+    command: ["spark-class", "org.apache.spark.deploy.worker.Worker", "spark://spark-master:7077",
+              "--cores", "1", "--memory", "1g"]
+    volumes:
+      - ../datos:/datos:ro
+      - ../practicas:/practicas:ro
+
+  spark-worker-2:
+    <<: *worker
+    hostname: spark-worker-2
+
+volumes:
+  kafka:

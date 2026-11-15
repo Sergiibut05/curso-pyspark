@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PySpark en la práctica</title>
+    <meta name="description" content="Curso práctico de PySpark: DataFrames, evaluación perezosa, ventanas, particiones, Structured Streaming y Kafka, con scripts que se ejecutan en Docker." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=JetBrains+Mono:wght@400;700&display=swap" />
+    <link rel="stylesheet" href="assets/css/estilos.css" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23d24a12'/%3E%3Ctext x='16' y='22' font-family='monospace' font-size='15' font-weight='700' fill='white' text-anchor='middle'%3ES%3C/text%3E%3C/svg%3E" />
+    <script src="assets/data/indice.js"></script>
+    <script src="assets/js/comun.js"></script>
+  </head>
+  <body class="curso-pyspark">
+    <a class="saltar" href="#temario-seccion">Saltar al temario</a>
+    <header class="barra">
+      <a class="marca" href="index.html"><span class="marca-icono">S</span>PySpark en la práctica</a>
+      <nav class="barra-nav" aria-label="Secciones">
+        <a href="#temario-seccion">Temario</a>
+        <a href="#empezar">Antes de empezar</a>
+        <a href="#fuentes">Fuentes</a>
+      </nav>
+      <a class="otro-curso" href="../curso-kafka/index.html">Curso de Kafka</a>
+      <button type="button" class="boton-tema" aria-label="Cambiar tema"></button>
+    </header>
+
+    <main>
+      <section class="portada">
+        <h1 class="titular-etapa" aria-label="PySpark en la práctica">
+          <span class="trozo" aria-hidden="true"><span>PySpark</span><span class="trozo-barra"></span><i>tarea 0</i></span>
+          <span class="trozo" aria-hidden="true"><span>en</span><span class="trozo-barra"></span><i>tarea 1</i></span>
+          <span class="trozo" aria-hidden="true"><span>la</span><span class="trozo-barra"></span><i>tarea 2</i></span>
+          <span class="trozo" aria-hidden="true"><span>práctica</span><span class="trozo-barra"></span><i>tarea 3</i></span>
+        </h1>
+        <p class="etapa-estado" aria-hidden="true"></p>
+        <p class="portada-lead">
+          DataFrames, evaluación perezosa, ventanas, particiones y Structured Streaming leyendo de Kafka. Cada
+          ejemplo es un script que se ejecuta en Docker, sin instalar Spark ni Java, y enseña su salida real.
+        </p>
+        <div class="portada-acciones">
+          <a class="boton boton-principal" id="continuar" href="leccion.html">Empezar el curso</a>
+          <a class="boton boton-secundario" href="leccion.html?l=chuleta">Ver la chuleta</a>
+        </div>
+        <p class="portada-progreso" id="portada-progreso"></p>
+      </section>
+
+      <section class="bloque-portada" id="temario-seccion">
+        <h2>Temario</h2>
+        <p class="intro">
+          Primero Spark en lote, con un catálogo de 18.302 registros; después en streaming, leyendo los topics del
+          laboratorio; al final, una fusión de dos fuentes de terremotos, primero en lote y luego en streaming.
+        </p>
+        <div id="temario"></div>
+      </section>
+
+      <div class="banda">
+        <section class="bloque-portada dos-columnas">
+          <div>
+            <h2>Así es una lección</h2>
+            <p class="intro">Cada fragmento de código sale de un script de <code>practicas/</code>, con lo que imprimió al ejecutarlo.</p>
+            <ul class="fuentes">
+              <li><strong>Un script por lección</strong> en <code>curso-pyspark/practicas/</code>, para ejecutarlo, cambiarlo y volver a ejecutarlo.</li>
+              <li><strong>Simuladores</strong> para lo que no se ve en la salida: cómo se parte una consulta en etapas y qué hace un micro-lote cuando el proceso se cae.</li>
+              <li><strong>El código del repositorio</strong>: cada decisión de <code>fusion/job.py</code>, explicada.</li>
+              <li><strong>Ejercicios y preguntas</strong> con la solución plegada y comprobada con Spark.</li>
+            </ul>
+          </div>
+          <div class="muestra" id="muestra"></div>
+        </section>
+      </div>
+
+      <section class="bloque-portada" id="empezar">
+        <div class="dos-columnas">
+          <div>
+            <h2>Antes de empezar</h2>
+            <p class="intro">
+              Los scripts se ejecutan en el laboratorio del curso, en Docker: un broker de Kafka y una imagen con
+              Python 3.12, Java 17 y PySpark 4.2.1. No hace falta instalar Spark ni Java.
+            </p>
+          </div>
+          <ol class="pasos">
+            <li>
+              <h3>Arranca el laboratorio</h3>
+              <p>En PowerShell, desde la carpeta <code>laboratorio</code> del curso, donde está su <code>compose.yaml</code>. Todas las órdenes del curso se ejecutan ahí.</p>
+              <div class="codigo pruebalo"><div class="codigo-cabecera"><span class="codigo-titulo">Pruébalo</span><span class="codigo-tipo">PowerShell</span></div><pre><code>docker compose up -d</code></pre></div>
+            </li>
+            <li>
+              <h3>Define el atajo</h3>
+              <p>Una vez por sesión. Ejecuta un script de <code>practicas/</code> en un contenedor con Spark; la primera vez construye la imagen (unos minutos).</p>
+              <div class="codigo pruebalo"><div class="codigo-cabecera"><span class="codigo-titulo">Pruébalo</span><span class="codigo-tipo">PowerShell</span></div><pre><code>function spark-py { docker compose run --rm spark python @args }</code></pre></div>
+            </li>
+            <li>
+              <h3>Ejecuta el primer script</h3>
+              <p>Y sigue con <a href="leccion.html?l=que-es-spark">Qué es Spark y qué hace aquí</a>.</p>
+              <div class="codigo pruebalo"><div class="codigo-cabecera"><span class="codigo-titulo">Pruébalo</span><span class="codigo-tipo">PowerShell</span></div><pre><code>spark-py 01_hola_spark.py 2>$null</code></pre></div>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <section class="bloque-portada" id="fuentes">
+        <h2>Fuentes</h2>
+        <ul class="fuentes">
+          <li><a href="https://spark.apache.org/docs/latest/api/python/">Documentación de PySpark</a>: guía de usuario y referencia de la API.</li>
+          <li><a href="https://spark.apache.org/docs/latest/streaming/">Structured Streaming Programming Guide</a>: micro-lotes, disparadores, checkpoints y garantías.</li>
+          <li><a href="https://spark.apache.org/docs/latest/streaming/structured-streaming-kafka-integration.html">Integración con Kafka</a>: todas las opciones de <code>format("kafka")</code>.</li>
+          <li><em>Spark: The Definitive Guide</em> y <em>Learning Spark</em> (2.ª ed., O'Reilly): DataFrames, ejecución y streaming.</li>
+          <li><a href="https://earthquake.usgs.gov/fdsnws/event/1/">USGS</a> y <a href="https://www.seismicportal.eu/fdsn-wsevent.html">EMSC</a>: las dos agencias de las que salen los datos de las prácticas.</li>
+        </ul>
+      </section>
+    </main>
+
+    <footer class="pie">
+      <div class="pie-dentro">
+        <p>Las salidas de los scripts son reales, ejecutadas con PySpark 4.2.1 en el laboratorio del curso.</p>
+      </div>
+    </footer>
+
+    <script type="text/markdown" id="muestra-md">
+```python titulo="practicas/04_perezoso.py"
+fuertes = t.filter(F.col("mag") >= 6).groupBy("red").count().orderBy(F.col("count").desc())
+fuertes.show()
+```
+
+```salida
++---+-----+
+|red|count|
++---+-----+
+| us|  144|
+| ak|    1|
++---+-----+
+```
+
+```quiz
+Escribes `df2 = df.filter(...).groupBy(...).count()`. ¿Cuántas filas ha leído Spark después de esa línea?
+* Ninguna.
+- Las que pasan el filtro.
+- Todas, para poder agrupar.
+> Son transformaciones: solo construyen el plan. La lectura empieza con la primera acción.
+```
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/marked@15.0.12/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/highlight.min.js"></script>
+    <script src="assets/js/widgets.js"></script>
+    <script src="assets/js/inicio.js"></script>
+  </body>
+</html>

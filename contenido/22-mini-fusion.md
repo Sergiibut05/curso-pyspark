@@ -1,0 +1,205 @@
+---
+titulo: "Proyecto: la regla de la fusión, solo con Spark"
+resumen: Enero de 2025, USGS contra EMSC, ≤ 30 s y ≤ 100 km. Un join por rango sin comparar todo con todo, y por qué el resultado difiere en 8 del real.
+bloque: Proyecto
+minutos: 30
+practica: si
+---
+
+Todo lo del curso junto, sobre un problema real del observatorio: **¿qué informes de USGS y de EMSC son
+el mismo terremoto?** La regla de la feature 013:
+
+> Dos informes son el mismo terremoto si son de **fuentes distintas**, sus horas de ocurrencia difieren
+> **≤ 30 s** y sus epicentros **≤ 100 km**. La magnitud no decide. Si hay varios candidatos, gana el de
+> menor puntuación `Δt/30 s + d/100 km`.
+
+La fusión real la aplica en Python, informe a informe, con el estado en PostgreSQL. Aquí la aplicarás **en
+lote, solo con Spark**, a todo enero de 2025 de una vez, y compararás con lo que decidió la fusión.
+
+## Los datos: el relleno de enero
+
+```python titulo="curso-pyspark/practicas/22_mini_fusion.py"
+def features(ruta):
+    # Estos ficheros tienen un salto de línea por terremoto: hace falta multiLine
+    return spark.read.option("multiLine", True).json(ruta).select(F.explode("features").alias("f"))
+
+usgs = features(USGS_ENERO_2025).select(
+    F.col("f.id").alias("id_usgs"),
+    F.col("f.properties.time").alias("t_usgs"),                    # ms desde 1970
+    F.col("f.geometry.coordinates")[1].alias("lat_usgs"),
+    F.col("f.geometry.coordinates")[0].alias("lon_usgs"),
+    F.col("f.properties.mag").alias("mag_usgs"),
+)
+emsc = features(EMSC_ENERO_2025).filter(F.col("f.properties.evtype") == "ke").select(
+    F.col("f.id").alias("id_emsc"),
+    F.unix_millis(F.to_timestamp("f.properties.time")).alias("t_emsc"),  # ISO -> ms
+    F.col("f.properties.lat").alias("lat_emsc"),
+    F.col("f.properties.lon").alias("lon_emsc"),
+    F.col("f.properties.mag").alias("mag_emsc"),
+)
+print("Informes USGS:", usgs.count(), "| EMSC (ke):", emsc.count())
+```
+
+```salida
+Informes USGS: 2239 | EMSC (ke): 5948
+```
+
+Las dos fuentes **no se parecen**: USGS da la hora en milisegundos y la posición en `geometry`; EMSC da la
+hora en texto ISO y la posición también en `properties`. Normalizar es el primer trabajo de cualquier
+integración (en el observatorio, una función de normalización). Y de EMSC solo cuentan los `evtype == "ke"`
+(*known earthquake*): los demás son explosiones, sospechosos o desconocidos.
+
+## El problema del join por rango
+
+«A menos de 30 s» no es una igualdad. Un join con esa condición obliga a Spark a comparar **cada** informe
+de USGS con **cada** informe de EMSC: 2.239 × 5.948 ≈ **13 millones** de pares para un mes. Para dos años,
+miles de millones.
+
+**El truco de los cubos**: divide el tiempo en minutos. Dos informes a ≤ 30 s están en el mismo minuto o en
+minutos vecinos. Si cada informe de EMSC se apunta a **su minuto y a los dos de al lado**, basta un join
+por **igualdad** de minuto, que Spark hace con hash, sin comparar todo con todo.
+
+```python
+usgs_c = usgs.withColumn("cubo", F.floor(F.col("t_usgs") / 60000))
+emsc_c = emsc.withColumn("cubo", F.explode(F.array(*[F.floor(F.col("t_emsc") / 60000) + d for d in (-1, 0, 1)])))
+```
+
+Después, sobre los pocos pares que comparten cubo, se aplica la regla de verdad:
+
+```python
+def rad(c):
+    return F.radians(F.col(c))
+
+haversine = 2 * 6371 * F.asin(F.sqrt(
+    F.pow(F.sin((rad("lat_emsc") - rad("lat_usgs")) / 2), 2)
+    + F.cos(rad("lat_usgs")) * F.cos(rad("lat_emsc")) * F.pow(F.sin((rad("lon_emsc") - rad("lon_usgs")) / 2), 2)
+))
+
+pares = (
+    usgs_c.join(emsc_c, "cubo")
+    .withColumn("dt_s", F.abs(F.col("t_usgs") - F.col("t_emsc")) / 1000)
+    .filter(F.col("dt_s") <= 30)
+    .withColumn("km", haversine)
+    .filter(F.col("km") <= 100)
+    .withColumn("puntuacion", F.col("dt_s") / 30 + F.col("km") / 100)
+)
+print("Pares candidatos (<= 30 s y <= 100 km):", pares.count())
+```
+
+```salida
+Pares candidatos (<= 30 s y <= 100 km): 1547
+```
+
+La distancia es la **fórmula del haversine** (gran círculo sobre una esfera de 6.371 km), escrita con
+funciones de Spark: nada de UDF de Python, así que se ejecuta en la JVM y en paralelo.
+
+## Elegir el mejor candidato: una ventana
+
+```python
+mejor = Window.partitionBy("id_usgs").orderBy("puntuacion", "id_emsc")
+elegidos = pares.withColumn("n", F.row_number().over(mejor)).filter("n = 1")
+```
+
+```salida
+USGS con pareja EMSC: 1547 de 2239 (69.1 %)
+USGS con dos o más candidatos: 0
++----------+----------------+----+----+--------+--------+
+|   id_usgs|         id_emsc|dt_s|  km|mag_usgs|mag_emsc|
++----------+----------------+----+----+--------+--------+
+|us6000pi9w|20250107_0000018| 0.7| 2.3|     7.1|     7.1|
+|us6000pjny|20250113_0000131| 0.5| 3.2|     6.8|     6.8|
+|us6000pjig|20250112_0000092| 1.1|14.9|     6.2|     6.2|
+|us6000pi09|20250105_0000177| 3.4|31.2|     6.2|     6.2|
+|us6000pgv4|20250101_0000155| 1.8| 7.1|     6.1|     6.1|
++----------+----------------+----+----+--------+--------+
+only showing top 5 rows
++----------+-----------+
+|dt_p50_p95|km_p50_p95 |
++----------+-----------+
+|[0.4, 4.0]|[5.7, 33.9]|
++----------+-----------+
+```
+
+- El 69 % de los informes M ≥ 2,5 de USGS tiene pareja en EMSC. El resto son terremotos que solo cataloga
+  una de las dos agencias (por cobertura o por magnitud), igual que muchos europeos pequeños no están en
+  USGS. Quedan como eventos de una sola fuente.
+- La mediana de diferencia es **0,4 s y 5,7 km**; el percentil 95, 4 s y 34 km. Los umbrales de 30 s y
+  100 km dejan mucho margen sin juntar réplicas lejanas.
+- El M 7,1 del 7 de enero (Tíbet) aparece en las dos fuentes a 0,7 s y 2,3 km.
+
+```powershell pruebalo
+spark-py 22_mini_fusion.py 2>$null
+```
+
+## Compara con la fusión real
+
+El servicio de fusión del observatorio (lección 1) procesó estos mismos informes de enero. Con su propia
+regla, juntó **1.539** de los 2.239 informes de USGS con uno de EMSC, no 1.547 como esta versión en Spark.
+Son los mismos datos y la misma regla de 30 s y 100 km. ¿De dónde salen los 8 de diferencia?
+
+:::ejercicio Encuentra los 8
+Pista en forma de pregunta: la ventana elige el mejor EMSC **para cada USGS**. ¿Impide algo que el mismo
+informe de EMSC sea el elegido de **dos** USGS distintos?
+
+Añade al final de `22_mini_fusion.py` una consulta que cuente los `id_emsc` que aparecen más de una vez en
+`elegidos`, y enséñalos con sus dos parejas.
+
+:::solucion
+```python
+rep = elegidos.groupBy("id_emsc").count().filter("count > 1")
+print("EMSC elegidos por dos USGS:", rep.count())
+elegidos.join(rep, "id_emsc").select("id_emsc", "id_usgs", F.round("dt_s", 1).alias("dt"),
+                                     F.round("km", 1).alias("km"), "mag_usgs").orderBy("id_emsc").show(20)
+```
+
+```salida
+EMSC elegidos por dos USGS: 8
++----------------+------------+----+----+--------+
+|         id_emsc|     id_usgs|  dt|  km|mag_usgs|
++----------------+------------+----+----+--------+
+|20250101_0000211|  us6000pjrj|16.4|44.5|     4.6|
+|20250101_0000211|  us6000pgw0| 0.3| 6.4|     4.6|
+|20250103_0000188|  us6000pk6s|29.3|36.7|     4.3|
+|20250103_0000188|  us6000phl5| 1.5|37.9|     5.2|
+|…               |            |    |    |        |
+|20250120_0000114|  us6000pl7e| 0.0| 0.0|     3.4|
+|20250120_0000114| ak025x9f7lh| 0.0| 2.5|     3.2|
+|20250130_0000337|ak0251dv92gs| 0.3| 2.4|     3.1|
+|20250130_0000337|ak0251dv92fv| 8.9| 0.9|     2.8|
++----------------+------------+----+----+--------+
+```
+
+**Exactamente 8.** En la versión de Spark, un mismo informe de EMSC se ha unido a dos de USGS: dos réplicas
+casi simultáneas, o el mismo terremoto publicado por dos redes de USGS (`us6000pl7e` y `ak025x9f7lh`, a 0 s).
+La fusión real lo impide: **un evento tiene como mucho un informe por fuente**, así que en cada caso solo
+uno de los dos USGS se queda el EMSC y el otro queda como evento aparte.
+
+Para replicarlo en Spark habría que resolver también el lado de EMSC (por ejemplo, otra ventana por
+`id_emsc` quedándose con el de menor puntuación) y luego repetir para los USGS que se quedan sin pareja…
+un emparejamiento iterativo que en Python, informe a informe y con el estado delante, es mucho más claro.
+Por eso el observatorio deja a Spark la lectura, la deduplicación y la escritura, y el emparejamiento a
+una función de Python que recorre los informes uno a uno.
+:::
+
+:::defensa Lo que demuestra esta práctica
+- La regla elegida está **medida**, no inventada: con los datos reales, medianas de 0,4 s y 5,7 km.
+- Spark resuelve bien la parte masiva (cubos, join por hash, haversine en paralelo).
+- Las reglas de negocio con exclusiones mutuas («un informe por fuente por evento») encajan peor en
+  operaciones de conjunto; ahí el estado explícito y el código secuencial ganan en claridad y en pruebas.
+:::
+
+```quiz
+¿Por qué cada informe de EMSC se apunta a tres cubos de un minuto y los de USGS solo a uno?
+- Porque EMSC publica tres veces cada terremoto.
+* Para que dos informes a ≤ 30 s siempre compartan cubo aunque caigan en minutos distintos, y así el join sea por igualdad.
+- Para triplicar la precisión de la hora.
+> Si USGS está a las 10:00:58 y EMSC a las 10:01:05, están en minutos distintos. Con el minuto anterior y el siguiente, el par aparece en el join; el filtro de 30 s descarta después los que no cumplen.
+```
+
+```quiz
+La versión de Spark empareja 1.547 informes de USGS y la fusión real 1.539. ¿Cuál es la causa?
+- Spark redondea mal las distancias.
+- La fusión real usa una ventana de 20 s.
+* En la versión de Spark un mismo informe de EMSC puede emparejarse con dos de USGS; la real solo admite un informe por fuente en cada evento.
+> Son exactamente 8 informes de EMSC elegidos por dos USGS. La restricción de exclusividad es la parte difícil de expresar como operación de conjunto.
+```

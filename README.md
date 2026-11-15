@@ -16,7 +16,23 @@ y su laboratorio (`laboratorio/compose.yaml`): un broker de Kafka 4.1 y la image
 (`docker/Dockerfile`: Python 3.12 + Java 17 + PySpark 4.2.1 + conector de Kafka). No hace falta instalar
 Spark ni Java en Windows.
 
-En PowerShell, **desde la carpeta `laboratorio`**:
+### Un solo comando
+
+Con Docker Desktop en marcha, desde la raíz del repo (o doble clic en `curso.cmd`):
+
+```powershell
+.\curso.ps1                      # arranca Kafka, construye la imagen, carga los topics y abre el curso
+.\curso.ps1 run 09_ventanas.py   # ejecuta una práctica (deja todo preparado si no lo estaba)
+.\curso.ps1 down                 # para el laboratorio (los datos de Kafka se conservan)
+.\curso.ps1 reset                # borra datos de Kafka, salidas y checkpoints para empezar de cero
+```
+
+La primera vez tarda unos minutos (construye la imagen); las siguientes, segundos. Es idempotente: se puede
+repetir sin duplicar datos en Kafka.
+
+### A mano
+
+Lo que hace el script, por si quieres hacerlo paso a paso. En PowerShell, **desde la carpeta `laboratorio`**:
 
 ```powershell
 docker compose up -d                                              # Kafka (kafka:19092 dentro de Docker)

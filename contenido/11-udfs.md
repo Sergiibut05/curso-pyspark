@@ -27,6 +27,16 @@ Las **pandas UDF** (vectorizadas) reducen el coste del paso 2: en vez de fila a 
 miles de filas** en formato **Arrow** (un formato de columnas en memoria que Java y Python leen sin
 convertir) y la función trabaja con un `pandas.Series` entero de una vez.
 
+```python preparacion
+import pandas as pd
+from pyspark.sql import functions as F
+
+from comun import sesion, terremotos_2025
+
+spark = sesion("udfs")
+t = terremotos_2025(spark).select("id", "red", "mag").filter(F.col("mag").isNotNull()).cache()
+```
+
 ## Míralo: la misma fórmula, cuatro formas
 
 La energía que libera un terremoto se estima a partir de su magnitud: `log10(E) = 1,5·M + 4,8` (julios). El
@@ -91,6 +101,8 @@ optimizador sí puede hacer cosas con la primera.
 @F.udf("int")
 def redondeo_mal(m):
     return round(m, 1)          # devuelve un float, pero se declaró int
+
+t.select("mag", redondeo_mal("mag").alias("udf_int")).show(3)
 ```
 
 ```salida
@@ -127,7 +139,8 @@ def resumen_red(pdf: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame({"red": [pdf["red"].iloc[0]], "n": [len(pdf)],
                          "mediana": [pdf["mag"].median()], "p90": [pdf["mag"].quantile(0.9)]})
 
-t.groupBy("red").applyInPandas(resumen_red, "red STRING, n LONG, mediana DOUBLE, p90 DOUBLE")
+(t.groupBy("red").applyInPandas(resumen_red, "red STRING, n LONG, mediana DOUBLE, p90 DOUBLE")
+ .orderBy(F.desc("n")).show(4))
 ```
 
 ```salida

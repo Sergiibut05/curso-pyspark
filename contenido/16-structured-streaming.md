@@ -12,7 +12,7 @@ ejecuta **una y otra vez sobre lo nuevo**, en **micro-lotes**.
 
 ## Las piezas de una consulta en streaming
 
-```python
+```python fragmento
 consulta = (
     spark.readStream.format("kafka")…load()        # 1. fuente
          .select(…).filter(…)                       # 2. transformaciones (las de siempre)
@@ -30,6 +30,16 @@ consulta = (
 | Disparador | `processingTime="15 seconds"`, `availableNow=True` | cada 15 s (`FUSION_TRIGGER_SEGUNDOS`) |
 | Modo de salida | `append`, `update`, `complete` (para agregaciones) | no aplica con `foreachBatch` |
 | Checkpoint | una carpeta duradera | volumen `fusion_checkpoint` en `/data/fusion/checkpoint` |
+
+```python preparacion
+import time
+
+from pyspark.sql import functions as F
+
+from comun import sesion
+
+spark = sesion("streaming")
+```
 
 ## Un flujo de prueba sin Kafka
 

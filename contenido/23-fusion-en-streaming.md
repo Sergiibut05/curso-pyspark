@@ -19,6 +19,16 @@ eventos.emsc ──┘    (subscribePattern)                    │      con su 
 
 Necesitas los topics cargados (lección 17, `00_cargar_kafka.py`).
 
+```python preparacion
+from pyspark.sql import Window
+from pyspark.sql import functions as F
+
+from comun import KAFKA, sesion
+
+spark = sesion("fusion-streaming", kafka=True)
+POR_LOTE = "100000"   # el valor por defecto del script (su primer argumento): todo en un lote
+```
+
 ## La lectura
 
 ```python titulo="practicas/23_fusion_streaming.py (lectura)"
@@ -55,7 +65,7 @@ Un solo flujo con las dos fuentes: cada mensaje dice en su sobre de qué fuente 
    `{"id_usgs", "id_emsc", "mag", "hora"}` (`id_emsc` nulo si no tiene pareja), con `acks=all` e
    idempotencia (lección 17).
 
-```python titulo="practicas/23_fusion_streaming.py (escritura y consulta)"
+```python fragmento titulo="practicas/23_fusion_streaming.py (escritura y consulta)"
     salida = (usgs.join(elegidos, "id_usgs", "left")
               .select(F.col("id_usgs").alias("key"),
                       F.to_json(F.struct("id_usgs", "id_emsc", F.col("mag_usgs").alias("mag"),

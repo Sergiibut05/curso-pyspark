@@ -10,6 +10,14 @@ Un **join** combina dos tablas por una clave: a cada terremoto, el nombre de su 
 operación que más errores silenciosos produce (filas que desaparecen o se duplican sin avisar) y una de
 las más caras. En la lección 7 viste uno sencillo; aquí, a fondo.
 
+```python preparacion
+from pyspark.sql import functions as F
+
+from comun import SALIDA, sesion, terremotos_2025
+
+spark = sesion("joins")
+```
+
 ## Dos tablas para verlo todo
 
 ```python titulo="practicas/08_joins.py (extracto)"
@@ -21,6 +29,7 @@ redes = spark.createDataFrame(
     "red STRING, nombre STRING")
 for tipo in ("inner", "left", "right", "full", "left_semi", "left_anti"):
     filas = sismos.join(redes, "red", tipo).orderBy("red", "id").collect()
+    print(f"{tipo:<10} {len(filas)} filas:", [tuple(f) for f in filas])
 ```
 
 `us` y `ak` están en las dos; `pr` y `xx` solo en `sismos`; `nc` solo en `redes`; y cada tabla tiene una

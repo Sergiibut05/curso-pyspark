@@ -11,6 +11,16 @@ Casi todo lo que harás con un DataFrame es crear o cambiar columnas con funcion
 JVM, en paralelo, y el optimizador las entiende. Evita las funciones de Python fila a fila (UDF) mientras
 exista una de `F` que haga lo mismo.
 
+```python preparacion
+from pyspark.sql import functions as F
+from pyspark.sql.types import DoubleType, StringType, StructField, StructType
+
+from comun import sesion, terremotos_2025
+
+spark = sesion("columnas")
+t = terremotos_2025(spark)
+```
+
 ## Añadir columnas: `withColumn` y `when`
 
 ```python titulo="curso-pyspark/practicas/05_columnas.py"

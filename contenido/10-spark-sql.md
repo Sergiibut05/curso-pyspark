@@ -9,6 +9,24 @@ practica: si
 Todo lo que has hecho con `filter`, `groupBy` y ventanas se puede escribir en **SQL**. No es otro motor:
 es otra forma de escribir lo mismo para el mismo optimizador.
 
+```python preparacion
+import shutil
+
+from pyspark.sql import SparkSession
+from pyspark.sql import functions as F
+
+from comun import SALIDA, terremotos_2025
+
+# Como en el script: las tablas de saveAsTable van al «almacén», dentro de _salida
+spark = (SparkSession.builder.master("local[2]").appName("spark-sql")
+         .config("spark.sql.session.timeZone", "UTC").config("spark.sql.shuffle.partitions", "4")
+         .config("spark.ui.showConsoleProgress", "false")
+         .config("spark.sql.warehouse.dir", f"{SALIDA}/almacen").getOrCreate())
+spark.sparkContext.setLogLevel("ERROR")
+# La carpeta de la tabla «fuertes» de otra ejecución haría fallar saveAsTable: se borra
+shutil.rmtree(f"{SALIDA}/almacen/fuertes", ignore_errors=True)
+```
+
 ## Vistas temporales
 
 Para usar un DataFrame desde SQL hay que darle un nombre:
@@ -24,6 +42,7 @@ sql = spark.sql("""
 api = (t.filter("mag >= 5").groupBy("red")
        .agg(F.count("*").alias("n"), F.round(F.max("mag"), 1).alias("mag_max"))
        .orderBy(F.desc("n")).limit(3))
+sql.show()
 ```
 
 ```powershell pruebalo
@@ -90,7 +109,7 @@ Se mezclan sin problema. Dentro de la API, `expr` y `selectExpr` aceptan trozos 
 
 ```python
 t.selectExpr("id", "round(mag * 10) / 10 AS mag",
-             "CASE WHEN prof > 300 THEN 'profundo' ELSE 'normal' END AS tipo").groupBy("tipo").count()
+             "CASE WHEN prof > 300 THEN 'profundo' ELSE 'normal' END AS tipo").groupBy("tipo").count().show()
 ```
 
 ```salida

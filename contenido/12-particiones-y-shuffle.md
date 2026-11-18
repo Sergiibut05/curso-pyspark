@@ -9,6 +9,14 @@ practica: Con Docker, sin la pila
 Spark es rápido cuando el trabajo se reparte bien. La unidad de reparto es la **partición**: un trozo de
 las filas que procesa **una tarea**. Con 2 hilos (`local[2]`), dos tareas van a la vez.
 
+```python preparacion
+from pyspark.sql import functions as F
+
+from comun import sesion, terremotos_2025
+
+spark = sesion("particiones")
+```
+
 ## El fichero que no se puede repartir
 
 ```python titulo="curso-pyspark/practicas/12_particiones.py"

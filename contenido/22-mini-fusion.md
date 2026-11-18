@@ -16,6 +16,15 @@ el mismo terremoto?** La regla de la feature 013:
 La fusión real la aplica en Python, informe a informe, con el estado en PostgreSQL. Aquí la aplicarás **en
 lote, solo con Spark**, a todo enero de 2025 de una vez, y compararás con lo que decidió la fusión.
 
+```python preparacion
+from pyspark.sql import Window
+from pyspark.sql import functions as F
+
+from comun import EMSC_ENERO_2025, USGS_ENERO_2025, sesion
+
+spark = sesion("mini-fusion")
+```
+
 ## Los datos: el relleno de enero
 
 ```python titulo="curso-pyspark/practicas/22_mini_fusion.py"
@@ -98,6 +107,14 @@ funciones de Spark: nada de UDF de Python, así que se ejecuta en la JVM y en pa
 ```python
 mejor = Window.partitionBy("id_usgs").orderBy("puntuacion", "id_emsc")
 elegidos = pares.withColumn("n", F.row_number().over(mejor)).filter("n = 1")
+
+total_usgs, con_pareja = usgs.count(), elegidos.count()
+print(f"USGS con pareja EMSC: {con_pareja} de {total_usgs} ({100 * con_pareja / total_usgs:.1f} %)")
+print("USGS con dos o más candidatos:", pares.groupBy("id_usgs").count().filter("count > 1").count())
+elegidos.select("id_usgs", "id_emsc", F.round("dt_s", 1).alias("dt_s"), F.round("km", 1).alias("km"),
+                "mag_usgs", "mag_emsc").orderBy(F.col("mag_usgs").desc()).show(5)
+elegidos.select(F.transform(F.percentile_approx("dt_s", [0.5, 0.95]), lambda x: F.round(x, 1)).alias("dt_p50_p95"),
+                F.transform(F.percentile_approx("km", [0.5, 0.95]), lambda x: F.round(x, 1)).alias("km_p50_p95")).show(truncate=False)
 ```
 
 ```salida

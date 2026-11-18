@@ -70,6 +70,7 @@
     const prosa = document.getElementById('prosa');
     anclarTitulos(prosa);
     activarContenido(prosa);
+    if (window.Laboratorio) window.Laboratorio.activar(prosa, meta);   // bloques de Python ejecutables
     pintarIndiceLocal(prosa);
     activarCompletada(meta);
     if (location.hash) {

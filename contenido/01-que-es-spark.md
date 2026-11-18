@@ -116,6 +116,14 @@ Filas: 1000000 | particiones: 2
 Antes de esas líneas verás avisos de arranque de la JVM (`Using Spark's default log4j profile`,
 `NativeCodeLoader`…). Son normales. Para ocultarlos, añade `2>$null` al final de la orden.
 
+:::nota También aquí mismo, como en un cuaderno
+Con el laboratorio en marcha (`.\curso.ps1`), los bloques de Python de las lecciones tienen un botón
+**Ejecutar**: el código corre en Docker, en una sesión de Spark propia de cada lección, y la salida aparece
+debajo del bloque. Los bloques comparten variables como las celdas de un cuaderno de Jupyter; si ejecutas
+uno sin los anteriores, se ejecutan antes los que falten. Puedes editar el código y volver a ejecutarlo
+(Mayús+Intro). **Abrir como cuaderno** abre la lección en JupyterLab (`.\curso.ps1 cuadernos` abre todas).
+:::
+
 :::cuidado Un millón de filas, dos particiones
 `spark.range` reparte las filas según el paralelismo: 2 hilos → 2 particiones de 500.000. El número de
 particiones decide cuántas tareas pueden ir a la vez. Lo verás a fondo en la lección de particiones.

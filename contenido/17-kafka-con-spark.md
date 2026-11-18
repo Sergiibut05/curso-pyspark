@@ -33,6 +33,14 @@ La segunda ejecución no duplica nada: comprueba antes si los topics tienen dato
 al escribir en ellos, con 3 particiones (el broker del laboratorio lo permite por comodidad; en producción
 se crean a mano). Cómo escribe Spark en Kafka lo verás al final de esta lección.
 
+```python preparacion
+from pyspark.sql import functions as F
+
+from comun import KAFKA, sesion
+
+spark = sesion("kafka-lote", kafka=True)   # kafka=True carga el conector de Kafka
+```
+
 ## Leer en modo lote para ver qué llega
 
 `spark.read` (sin `Stream`) lee un rango de offsets una vez. Es la mejor forma de explorar:
@@ -175,7 +183,7 @@ herramienta. Su progreso está en `checkpoint/offsets/`.
 Un DataFrame con columnas `key` y `value` (texto o bytes) y, opcionalmente, `topic`, `partition` y
 `headers`, se escribe con `format("kafka")`. Así llena los topics `00_cargar_kafka.py`:
 
-```python titulo="practicas/00_cargar_kafka.py (extracto)"
+```python fragmento titulo="practicas/00_cargar_kafka.py (extracto)"
 (df.select(
     F.col("f.id").alias("key"),
     F.to_json(F.struct(F.lit(fuente).alias("fuente"), F.col("f").alias("event"))).alias("value"))

@@ -22,6 +22,16 @@ entonces lo ejecuta.
 plan
 ```
 
+```python preparacion
+import time
+
+from pyspark.sql import functions as F
+
+from comun import sesion, terremotos_2025
+
+spark = sesion("perezoso")
+```
+
 ## Pruébalo con el catálogo
 
 ```python titulo="curso-pyspark/practicas/04_perezoso.py"

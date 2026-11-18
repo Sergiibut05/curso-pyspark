@@ -10,6 +10,15 @@ Una **función de ventana** calcula algo para cada fila mirando a otras filas de
 en una sola** (como haría `groupBy`). Sirve para «el mayor de cada grupo», «el anterior a este» o «la
 última versión de cada cosa».
 
+```python preparacion
+from pyspark.sql import Window
+from pyspark.sql import functions as F
+
+from comun import sesion, terremotos_2025
+
+spark = sesion("ventanas")
+```
+
 Una ventana se define con dos piezas:
 
 ```python

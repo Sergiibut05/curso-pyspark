@@ -183,14 +183,16 @@
   }
 
   function analizarInfo(info) {
-    // «python pruebalo titulo="backend/x.py"» → { lengua, pruebalo, titulo }
-    const r = { lengua: '', pruebalo: false, titulo: '' };
+    // «python pruebalo titulo="backend/x.py"» → { lengua, pruebalo, titulo, preparacion, fragmento }
+    const r = { lengua: '', pruebalo: false, titulo: '', preparacion: false, fragmento: false };
     if (!info) return r;
     const t = info.match(/titulo="([^"]*)"/);
     if (t) r.titulo = t[1];
     const resto = info.replace(/titulo="[^"]*"/, '').trim().split(/\s+/);
     r.lengua = resto[0] || '';
     r.pruebalo = resto.includes('pruebalo');
+    r.preparacion = resto.includes('preparacion');
+    r.fragmento = resto.includes('fragmento');
     return r;
   }
 
@@ -208,24 +210,36 @@
     pyspark: 'PySpark',
   };
 
-  function bloqueCodigo(texto, info) {
-    const { lengua, pruebalo, titulo } = analizarInfo(info);
+  function resaltar(texto, lengua) {
     const lenguaHl = lengua === 'pyspark' ? 'python' : lengua === 'sh' ? 'bash' : lengua;
-    let html = escapar(texto);
     if (window.hljs && lenguaHl && hljs.getLanguage(lenguaHl)) {
       try {
-        html = hljs.highlight(texto, { language: lenguaHl, ignoreIllegals: true }).value;
+        return hljs.highlight(texto, { language: lenguaHl, ignoreIllegals: true }).value;
       } catch {
         /* sin resaltado */
       }
     }
-    const etiqueta = titulo || (pruebalo ? 'Pruébalo' : '');
-    return (
-      `<div class="codigo${pruebalo ? ' pruebalo' : ''}">` +
+    return escapar(texto);
+  }
+
+  function bloqueCodigo(texto, info) {
+    const { lengua, pruebalo, titulo, preparacion, fragmento } = analizarInfo(info);
+    const html = resaltar(texto, lengua);
+    // Los bloques de Python se pueden ejecutar en el laboratorio (laboratorio.js), salvo los fragmentos.
+    const celda = (lengua === 'python' || lengua === 'pyspark') && !fragmento;
+    const etiqueta = titulo || (pruebalo ? 'Pruébalo' : preparacion ? 'Preparación' : '');
+    const tipo = (NOMBRES_LENGUA[lengua] || lengua || '') + (fragmento ? ' · fragmento' : '');
+    const bloque =
+      `<div class="codigo${pruebalo ? ' pruebalo' : ''}${celda ? ' celda' : ''}"${celda ? ' data-celda' : ''}${preparacion ? ' data-preparacion' : ''}>` +
       `<div class="codigo-cabecera"><span class="codigo-titulo">${escapar(etiqueta)}</span>` +
-      `<span class="codigo-tipo">${escapar(NOMBRES_LENGUA[lengua] || lengua || '')}</span>` +
+      `<span class="codigo-tipo"${fragmento ? ' title="Ilustrativo: este bloque no se ejecuta"' : ''}>${escapar(tipo)}</span>` +
       `<button type="button" class="copiar" data-copiar>Copiar</button></div>` +
-      `<pre><code class="hljs">${html}</code></pre></div>`
+      `<pre><code class="hljs">${html}</code></pre></div>`;
+    if (!preparacion) return bloque;
+    return (
+      `<details class="preparacion"><summary><span class="preparacion-titulo">Preparación de la lección</span>` +
+      `<span class="preparacion-nota">imports, sesión de Spark y datos de partida · se ejecuta sola antes del primer bloque</span></summary>` +
+      `${bloque}</details>`
     );
   }
 
@@ -357,6 +371,7 @@
     progreso,
     escapar,
     slugificar,
+    resaltar,
     renderizar,
     activarContenido,
     montarBarra,

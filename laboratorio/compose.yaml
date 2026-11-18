@@ -52,6 +52,46 @@ services:
       - ../datos:/datos:ro
       - ../practicas:/practicas
 
+  # Jupyter: ejecuta los bloques de código de las lecciones desde la web (botón «Ejecutar») y sirve JupyterLab
+  # con los cuadernos. El token lo genera curso.ps1 en laboratorio/.env (y en assets/js/laboratorio-local.js
+  # para la web); sin él, Jupyter inventa uno y solo se puede entrar con la URL que escribe en su log.
+  # Cuadernos: los originales (../cuadernos, los genera build.py) se copian a ../mis-cuadernos la primera vez;
+  # tus cambios se guardan ahí y no se pisan. Borra un cuaderno de mis-cuadernos para recuperar el original.
+  jupyter:
+    build: ../docker
+    image: curso-pyspark:local
+    restart: unless-stopped
+    hostname: laboratorio
+    working_dir: /cuadernos
+    ports:
+      - "127.0.0.1:38888:8888"          # Jupyter (38888 para no chocar con otro Jupyter del ordenador)
+      - "127.0.0.1:4040-4042:4040-4042"  # interfaz web de Spark de los núcleos abiertos (lección 14)
+    environment:
+      JUPYTER_TOKEN: ${JUPYTER_TOKEN:-}
+      PYTHONPATH: /practicas             # para que «from comun import …» funcione desde cualquier carpeta
+    volumes:
+      - ../datos:/datos:ro
+      - ../practicas:/practicas
+      - ../cuadernos:/originales:ro
+      - ../mis-cuadernos:/cuadernos
+    command:
+      - sh
+      - -c
+      - >-
+        for f in /originales/*.ipynb; do [ -e "/cuadernos/$${f##*/}" ] || cp "$$f" /cuadernos/; done;
+        exec jupyter lab --ip=0.0.0.0 --port=8888 --no-browser
+        --ServerApp.root_dir=/cuadernos
+        --ServerApp.allow_origin='*'
+        --ServerApp.allow_remote_access=True
+        --MappingKernelManager.cull_idle_timeout=1200
+        --MappingKernelManager.cull_interval=60
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8888/api')"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 5s
+
   # Lección 20: un clúster Spark Standalone con la misma imagen. docker compose --profile cluster up -d
   spark-master:
     image: curso-pyspark:local

@@ -14,11 +14,45 @@ Casi toda la optimización en Spark se reduce a tres ideas:
 
 Con el plan y la interfaz web (lección 14) ves dónde falla cada una. Esta lección es el «qué hacer».
 
+```python preparacion
+import os
+import time
+
+from pyspark.sql import functions as F
+
+from comun import SALIDA, sesion, terremotos_2025
+
+spark = sesion("optimizar")
+t = terremotos_2025(spark)
+t.write.mode("overwrite").parquet(f"{SALIDA}/opt/terremotos")   # el Parquet que lee el primer bloque
+
+
+def detalle(df, clave):
+    """El trozo del plan físico que empieza por clave (PushedFilters:, ReadSchema:…)."""
+    plan = df._jdf.queryExecution().executedPlan().toString()
+    linea = next(l for l in plan.splitlines() if clave in l)
+    trozo = linea[linea.index(clave):]
+    return trozo[:trozo.find("]", len(clave)) + 1] if "]" in trozo else trozo[:100]
+
+
+# Sesgo: 2 millones de filas, el 90 % con la misma clave
+datos = spark.range(2_000_000).select(
+    F.when(F.col("id") % 10 < 9, F.lit("us")).otherwise(F.concat(F.lit("red"), (F.col("id") % 50).cast("string"))).alias("red"),
+    F.col("id"))
+# La tabla de redes del join sesgado, leída de Parquet
+datos.select("red").distinct().withColumn("nombre", F.concat(F.lit("Red "), "red")) \
+     .write.mode("overwrite").parquet(f"{SALIDA}/opt/redes")
+redes = spark.read.parquet(f"{SALIDA}/opt/redes")
+```
+
 ## Leer menos: Parquet se salta lo que no pides
 
 ```python titulo="practicas/15_optimizar.py (extracto)"
 pq = spark.read.parquet(f"{SALIDA}/opt/terremotos")
 consulta = pq.filter("mag >= 7").select("id", "mag")
+print("PushedFilters:", detalle(consulta, "PushedFilters:"))
+print("ReadSchema   :", detalle(consulta, "ReadSchema:"))
+print("M >= 7:", consulta.count())
 ```
 
 ```powershell pruebalo
@@ -101,6 +135,10 @@ SAL = 8
 con_sal = datos.withColumn("sal", (F.rand(seed=1) * SAL).cast("int"))
 resultado = (con_sal.groupBy("red", "sal").agg(F.count("*").alias("n"))   # el trabajo pesado, repartido
              .groupBy("red").agg(F.sum("n").alias("n")))                 # combinar: pocas filas
+
+por_particion = con_sal.repartition(8, "red", "sal").groupBy(F.spark_partition_id().alias("p")).count().orderBy("p")
+print("con sal                               :", [r["count"] for r in por_particion.collect()])
+print("recuento de 'us' con sal:", resultado.orderBy(F.desc("n")).first()["n"])
 ```
 
 ```salida
@@ -123,10 +161,17 @@ defecto): tras el shuffle, si una partición es mucho mayor que la mediana (por 
 para que se active con 2 millones de filas:
 
 ```python
+spark.conf.set("spark.sql.autoBroadcastJoinThreshold", "-1")          # que no lo resuelva con broadcast
+spark.conf.set("spark.sql.shuffle.partitions", "50")                  # con 4, la caliente no destaca
 spark.conf.set("spark.sql.adaptive.skewJoin.skewedPartitionFactor", "2")
 spark.conf.set("spark.sql.adaptive.skewJoin.skewedPartitionThresholdInBytes", "256KB")
+spark.conf.set("spark.sql.adaptive.advisoryPartitionSizeInBytes", "256KB")
 consulta = datos.join(redes, "red").groupBy("nombre").agg(F.sum("id").alias("suma"))
 consulta.collect()
+plan = consulta._jdf.queryExecution().executedPlan().toString().split("== Initial Plan ==")[0]
+for linea in plan.splitlines():
+    if "SortMergeJoin" in linea or ("AQEShuffleRead" in linea and "skewed" in linea):
+        print("plan final:", linea.strip()[linea.strip().find("SortMergeJoin") if "SortMergeJoin" in linea else linea.strip().find("AQE"):][:45])
 ```
 
 ```salida

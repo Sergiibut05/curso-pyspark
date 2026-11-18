@@ -1,0 +1,6 @@
+# Token del laboratorio de Jupyter (lo genera curso.ps1)
+laboratorio/.env
+assets/js/laboratorio-local.js
+
+# Copias de trabajo de los cuadernos (las crea el servicio jupyter a partir de cuadernos/)
+mis-cuadernos/

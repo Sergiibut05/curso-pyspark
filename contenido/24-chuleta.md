@@ -19,7 +19,7 @@ docker compose down -v                         # parar y borrar los datos de Kaf
 
 ## Sesión y lectura
 
-```python
+```python fragmento
 from pyspark.sql import SparkSession, Window
 from pyspark.sql import functions as F
 
@@ -67,7 +67,7 @@ spark.createDataFrame([(1, "a")], "n int, s string")    # datos a mano, con esqu
 
 ## Inspeccionar
 
-```python
+```python fragmento
 df.printSchema()
 df.explain()                         # plan físico; busca los Exchange (shuffles)
 df.rdd.getNumPartitions()
@@ -76,7 +76,7 @@ df.rdd.glom().map(len).collect()     # filas por partición (solo con datos pequ
 
 ## Streaming con Kafka
 
-```python
+```python fragmento
 flujo = (spark.readStream.format("kafka")
          .option("kafka.bootstrap.servers", "kafka:19092")
          .option("subscribePattern", r"eventos\.(usgs|emsc)")

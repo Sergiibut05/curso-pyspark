@@ -21,7 +21,7 @@ eventos **no llegan en orden**: uno de febrero puede llegar en diciembre.
 
 ## Ventanas y watermark
 
-```python
+```python fragmento
 por_semana = (lectura.withWatermark("hora", "1 day")
               .groupBy(F.window("hora", "7 days")).agg(F.count("*").alias("n")))
 ```
@@ -97,7 +97,7 @@ Las fuentes repiten: reintentos, reenvíos, una agencia que vuelve a publicar. `
 tendría que recordar **todos** los ids vistos, para siempre. `dropDuplicatesWithinWatermark` recuerda cada
 id solo mientras la watermark no lo cubra:
 
-```python
+```python fragmento
 sin_repetidos = lectura.withWatermark("hora", "1 day").dropDuplicatesWithinWatermark(["id"])
 ```
 
@@ -115,7 +115,7 @@ Spark también puede unir **dos flujos** (por ejemplo, USGS y EMSC), guardando e
 cada lado mientras puedan tener pareja. Necesita una watermark en cada lado y una **condición de tiempo**
 que acote cuánto hay que esperar. La forma, como esquema (no es una de las prácticas del curso):
 
-```python
+```python fragmento
 usgs = flujo_usgs.withWatermark("t_usgs", "1 hour")
 emsc = flujo_emsc.withWatermark("t_emsc", "1 hour")
 pares = usgs.join(emsc, F.expr("""

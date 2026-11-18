@@ -18,6 +18,18 @@ Spark los representa con tres **tipos complejos**:
 
 Se pueden anidar sin límite: un array de structs, un struct con un map dentro…
 
+```python preparacion
+from pyspark.sql import functions as F
+
+from comun import USGS_2025, sesion
+
+spark = sesion("tipos-complejos")
+f = spark.read.json(USGS_2025).select(F.explode("features").alias("f")).select("f.*")
+# Dos terremotos como texto JSON, como el valor de un mensaje de Kafka (lo usa el bloque de from_json)
+texto = f.select(F.to_json(F.struct("id", F.col("properties.mag").alias("mag"),
+                                    F.col("geometry.coordinates").alias("coord"))).alias("json")).limit(2)
+```
+
 ## Navegar
 
 ```python titulo="practicas/06_tipos_complejos.py (extracto)"

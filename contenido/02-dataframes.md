@@ -142,7 +142,7 @@ la lección 22.
 
 ## Las tres formas de escribir una columna
 
-```python
+```python fragmento
 F.col("mag")          # la más explícita; la que usa el repositorio
 tabla["mag"]          # atada a un DataFrame concreto (útil en joins con nombres repetidos)
 "mag"                 # texto: vale en select, groupBy, orderBy…, pero no para operar (mag >= 7)
@@ -163,6 +163,8 @@ Partiendo de `tabla` (o de `terremotos_2025(spark)` en `comun.py`, que ya trae m
 
 :::solucion
 ```python
+from comun import terremotos_2025
+
 t = terremotos_2025(spark)
 print(t.filter(F.col("prof") > 300).count())
 t.orderBy(F.col("prof").desc()).select("id", "hora", "mag", "prof", "lugar").show(1, truncate=False)

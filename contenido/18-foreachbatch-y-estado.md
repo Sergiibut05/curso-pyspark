@@ -6,6 +6,18 @@ minutos: 25
 practica: si
 ---
 
+```python preparacion
+import sys
+
+from pyspark.sql import Window
+from pyspark.sql import functions as F
+
+from comun import KAFKA, sesion
+
+spark = sesion("kafka-streaming", kafka=True)
+sys.argv = sys.argv[:1]   # aquí no hay argumentos de línea de órdenes: el script usa su valor por defecto
+```
+
 ## Una consulta como la de la fusión
 
 Este script lee `eventos.usgs` en streaming, con tope por lote y checkpoint, y en cada lote se queda con
@@ -89,7 +101,7 @@ Structured Streaming tiene operadores con estado: `dropDuplicates`, agregaciones
 *joins* entre dos flujos, `applyInPandasWithState`… Guardan el estado en el checkpoint y lo limpian con
 un **watermark**: «descarta todo lo que tenga una hora de evento más antigua que *máximo visto − X*».
 
-```python
+```python fragmento
 flujo.withWatermark("hora", "2 hours").dropDuplicates(["id", "hora"])
 ```
 

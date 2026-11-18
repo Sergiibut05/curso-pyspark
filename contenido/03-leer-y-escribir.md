@@ -13,7 +13,7 @@ bien el formato en el que **guardas** los tuyos cambia el tamaño, la velocidad 
 
 Todo se lee con `spark.read` y se escribe con `df.write`, con la misma forma:
 
-```python
+```python fragmento
 df = spark.read.format("csv").option("header", True).load("ruta")       # forma general
 df = spark.read.option("header", True).csv("ruta")                       # atajo equivalente
 
@@ -37,6 +37,18 @@ Spark **no escribe un fichero, escribe una carpeta**: dentro hay un fichero por 
 **Por columnas** significa que Parquet guarda juntos todos los valores de `mag`, luego todos los de
 `lugar`… Eso comprime mucho mejor (valores parecidos seguidos) y permite leer solo las columnas que hacen
 falta (lo verás en la lección 15).
+
+```python preparacion
+import os
+
+from pyspark.sql import functions as F
+
+from comun import SALIDA, sesion, terremotos_2025
+
+spark = sesion("leer-escribir")
+t = terremotos_2025(spark).withColumn("mes", F.month("hora"))
+ruta = f"{SALIDA}/terremotos.csv"   # el CSV que escribe el primer bloque
+```
 
 ## Míralo: el mismo catálogo, tres formatos
 
@@ -76,6 +88,9 @@ inferido = spark.read.option("header", True).option("inferSchema", True).csv(rut
 explicito = spark.read.option("header", True).schema(
     "id STRING, hora TIMESTAMP, mag DOUBLE, tipo_mag STRING, lugar STRING, red STRING, "
     "sentido INT, lon DOUBLE, lat DOUBLE, prof DOUBLE, mes INT").csv(ruta)
+parquet = spark.read.parquet(f"{SALIDA}/terremotos.parquet")
+for nombre, df in (("sin esquema", sin_esquema), ("inferSchema", inferido), ("esquema DDL", explicito), ("parquet", parquet)):
+    print(f"{nombre:<12}", ", ".join(f"{c}:{tipo}" for c, tipo in df.dtypes[:4]), "…")
 ```
 
 ```salida
@@ -123,6 +138,12 @@ deduplica después.
 
 ```python
 t.write.mode("overwrite").partitionBy("mes").parquet(f"{SALIDA}/por_mes")
+print("carpetas:", sorted(os.listdir(f"{SALIDA}/por_mes"))[:4], "…")
+marzo = spark.read.parquet(f"{SALIDA}/por_mes").filter("mes = 3")
+print("marzo:", marzo.count(), "terremotos")
+plan = marzo._jdf.queryExecution().executedPlan().toString()
+linea = [l for l in plan.splitlines() if "PartitionFilters" in l][0]
+print("en el plan:", linea[linea.index("PartitionFilters"):][:70])
 ```
 
 ```salida
@@ -150,7 +171,7 @@ con **pocos valores** que se usan **mucho en filtros**: fecha, país, fuente. Lo
 Un fichero con una línea rota (JSON cortado) y un valor de tipo equivocado (`"mag": "fuerte"`). Lo que
 hace Spark depende de `mode` al **leer**:
 
-```python
+```python fragmento
 ESQ = "id STRING, mag DOUBLE, _corrupt_record STRING"
 spark.read.schema(ESQ).option("mode", modo).json(f"{SALIDA}/sucio")
 ```

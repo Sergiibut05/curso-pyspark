@@ -6,6 +6,17 @@ minutos: 18
 practica: si
 ---
 
+```python preparacion
+import time
+
+from pyspark import StorageLevel
+from pyspark.sql import functions as F
+
+from comun import sesion, terremotos_2025
+
+spark = sesion("cache")
+```
+
 ## Cada acción empieza de cero
 
 En la lección 4 viste que Spark es perezoso: las transformaciones solo construyen un plan, y cada
@@ -115,7 +126,7 @@ t.filter("mag < 4.5").count()
    segundo `groupBy`. **No** cachear `t`: la última acción es la única otra que lo usa y filtraría casi
    todo; cachearlo guardaría 18.302 filas para un solo uso más.
 
-```python
+```python fragmento
 fuertes = t.filter("mag >= 6").select("id", "red", "mag", "hora").cache()
 ...
 fuertes.unpersist()

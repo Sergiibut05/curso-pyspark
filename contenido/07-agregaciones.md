@@ -6,6 +6,15 @@ minutos: 18
 practica: Con Docker, sin la pila
 ---
 
+```python preparacion
+from pyspark.sql import functions as F
+
+from comun import sesion, terremotos_2025
+
+spark = sesion("agregaciones")
+t = terremotos_2025(spark)
+```
+
 ## `groupBy` + `agg`
 
 ```python titulo="curso-pyspark/practicas/07_agregaciones.py"

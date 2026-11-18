@@ -24,6 +24,33 @@ tu código ──► plan lógico ──(Catalyst optimiza)──► plan físic
 Una etapa lenta suele ser por una de tres cosas: lee muchos datos, baraja muchos datos, o una de sus
 tareas tarda muchísimo más que las demás (**sesgo**, lección 15).
 
+```python preparacion
+import json
+import urllib.request
+
+from pyspark.sql import functions as F
+
+from comun import sesion, terremotos_2025
+
+spark = sesion("planes-y-ui")
+t = terremotos_2025(spark)
+redes = spark.createDataFrame([("us", "USGS NEIC"), ("ak", "Alaska"), ("nc", "California norte")],
+                              "red STRING, nombre STRING")
+
+
+def nodos(df):
+    """Los nodos del plan físico que interesan en esta lección."""
+    plan = df._jdf.queryExecution().executedPlan().toString()
+    plan = plan.split("== Initial Plan ==")[0]     # tras ejecutar, Spark enseña el plan final y el inicial
+    return [n for n in ("isFinalPlan=false", "isFinalPlan=true", "SortMergeJoin", "BroadcastHashJoin",
+                        "AQEShuffleRead") if n in plan]
+
+
+# La interfaz web de esta sesión. Desde Windows: http://localhost:4040
+url = spark.sparkContext.uiWebUrl
+app = spark.sparkContext.applicationId
+```
+
 ## explain en modo formatted
 
 La lección 4 usaba `explain()`. Con `mode="formatted"` el árbol sale numerado arriba y los detalles de cada
@@ -162,6 +189,9 @@ Todo lo que enseña la web está también en una **API REST**, que es como la co
 ```python
 with urllib.request.urlopen(f"{url}/api/v1/applications/{app}/jobs") as r:
     trabajos = json.load(r)
+print(f"interfaz web en {url}: {len(trabajos)} trabajos")
+for j in sorted(trabajos, key=lambda j: j["jobId"])[-3:]:
+    print(f"  trabajo {j['jobId']}: {j['status']}, etapas {j['stageIds']}, tareas {j['numTasks']}")
 ```
 
 ```salida
